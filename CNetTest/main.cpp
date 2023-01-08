@@ -3,6 +3,7 @@
 #include<thread>
 #include<string>
 #include<map>
+#include<chrono>
 
 #include<CNet.h>
 #include<CNetServer.h>
@@ -119,17 +120,39 @@ int buff()
 		{
 			if (spam)
 			{
-				Vec2 inVec = { 14.876f, 0.2398623f  };
-				cl1->send(CNetBuffer(&inVec));
+				 auto now = std::chrono::high_resolution_clock::now();
+				 long long date = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+				
+				CNetBuffer buffer(&date);
+				int w = 0;
+
+				for (size_t i = 0; i < 100; i++)
+				{
+					cl1->send(buffer, &w);
+				}
+				buffer.clear();
 			}
 		
-			CNetBuffer buffer;
-			if (cl2->recieve(buffer) != CNetStatus::CNET_ERROR)
+			if (cl2->get_queue_size() > 0)
 			{
-				Vec2* outVec = buffer;
-				std::cout << (!spam ? "[TIME OUT] " : "") << outVec->x << " " << outVec->y << std::endl;
+				std::vector<CNetBuffer> all = {};
+				if (cl2->recieve_all(&all) != CNetStatus::CNET_ERROR)
+				{
+					for (CNetBuffer& buffer : all)
+					{
+						long long* date = (long long*)buffer;
+						auto dtime = std::chrono::time_point<std::chrono::high_resolution_clock>() + std::chrono::milliseconds(*date);
+						auto now = std::chrono::high_resolution_clock::now();
+
+						long long latency = std::chrono::duration_cast<std::chrono::milliseconds>(now - dtime).count();
+						std::cout << (!spam ? "[TIME OUT] " : "") << latency << "ms" << std::endl;
+
+						buffer.clear();
+					}
+					all.clear();
+				}
 			}
-			buffer.clear();
+			
 			
 		}
 	}).detach();

@@ -116,9 +116,7 @@ namespace cnet
         this->m_mutex.lock();
         if (this->m_queue.size() > 0)
         {
-            buffer.copy(this->m_queue[0]);
-
-            this->m_queue[0].clear();
+            buffer = this->m_queue[0];
             this->m_queue.erase(this->m_queue.begin());
             this->m_mutex.unlock();
             return CNetStatus::CNET_OK;
@@ -152,12 +150,14 @@ namespace cnet
     {
         if (this->m_queue.size() == 0)
         {
-            return CNetStatus::CNET_OK;
+            return CNetStatus::CNET_ERROR;
         }
-
+        this->m_mutex.lock();
         *out = this->m_queue;
         this->m_queue.clear();
-        return CNetStatus::CNET_ERROR;
+        this->m_queue.shrink_to_fit();
+        this->m_mutex.unlock();
+        return CNetStatus::CNET_OK;
     }
 
     CNetStatus CNetClient::set_queue_max(size_t m)
@@ -175,11 +175,11 @@ namespace cnet
         this->m_running = true;
 
         CNetBuffer buffer;
+        
+        char* tmp = new char[this->m_props.packet_size];
         while (this->m_running)
         {
-            char* tmp = new char[this->m_props.packet_size];
             int byteread = recv(this->m_socket, tmp, this->m_props.packet_size, 0);
-
             int status = 0;
             if (this->get_status(&status) == CNetStatus::CNET_ERROR || byteread <= 0 || byteread > this->m_props.packet_size)
             {
@@ -192,7 +192,7 @@ namespace cnet
             buffer += recieved;
             recieved.clear();
 
-            if(byteread < this->m_props.packet_size)
+            if (byteread < this->m_props.packet_size)
             {
                 CNetBuffer copy;
                 copy.copy(buffer);
@@ -204,10 +204,13 @@ namespace cnet
                     this->m_queue.erase(this->m_queue.begin());
                 }
                 this->m_mutex.unlock();
-                
+
                 buffer.clear();
             }
+        }
 
+        if (tmp != nullptr)
+        {
             delete[] tmp;
         }
     }

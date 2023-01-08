@@ -81,6 +81,10 @@ namespace cnet
     bool CNetBuffer::resize(size_t size)
     {
         bool was_alloc = this->m_length != 0 && this->m_buffer != nullptr;
+        if (size <= this->m_length)
+        {
+            return true;
+        }
         if (this->alloc(size))
         {
             if (was_alloc)
@@ -100,7 +104,7 @@ namespace cnet
     void CNetBuffer::clear()
     {
         this->m_length = 0;
-        if (!this->is_null() && this->m_allocCount != 0)
+        if (this->m_buffer != nullptr && this->m_allocCount != 0)
         {
             delete[] this->m_buffer;
             this->m_buffer = nullptr;
@@ -110,7 +114,7 @@ namespace cnet
 
     void CNetBuffer::copy(CNetBuffer obj)
     {
-        if (!obj.m_buffer)
+        if (obj.m_buffer == nullptr)
         {
             return;
         }
@@ -136,12 +140,12 @@ namespace cnet
 
     CNetBuffer CNetBuffer::operator+(CNetBuffer obj)
     {
-        CNetBuffer buffer(obj.m_length + this->m_length);
-        if (!obj.m_buffer || !this->m_buffer)
+        if (this->m_buffer == nullptr || obj.m_buffer == nullptr)
         {
-            return buffer;
+            return CNetBuffer();
         }
 
+        CNetBuffer buffer(obj.m_length + this->m_length);
         memcpy(buffer.m_buffer, this->m_buffer, this->m_length);
         memcpy(buffer.m_buffer + this->m_length, obj.m_buffer, obj.m_length);
         return buffer;
@@ -149,10 +153,11 @@ namespace cnet
 
     void CNetBuffer::operator+=(char c)
     {
-        if (this->alloc(this->m_length + 1))
+        if (this->m_buffer == nullptr || !this->alloc(this->m_length + 1))
         {
-            this->m_buffer[this->m_length - 1] = c;
+            return;
         }
+        this->m_buffer[this->m_length - 1] = c;
     }
 
     void CNetBuffer::operator+=(CNetBuffer obj)
@@ -192,12 +197,18 @@ namespace cnet
 
     bool CNetBuffer::alloc(size_t len)
     {
+        if (this->m_length == len)
+        {
+            return true;
+        }
+
         this->m_length = len;
         if (this->m_buffer == nullptr || this->m_allocCount == 0)
         {
             this->m_buffer = (char*)malloc(this->m_length);
         }
-        else {
+        else
+        {
             this->m_buffer = (char*)realloc(this->m_buffer, this->m_length);
         }
         this->m_allocCount++;
